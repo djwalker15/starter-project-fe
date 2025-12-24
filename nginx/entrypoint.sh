@@ -1,7 +1,12 @@
 #!/usr/bin/env sh
 set -eu
 
-: "${UPSTREAM_API_BASE_URL:?Must set UPSTREAM_API_BASE_URL (e.g. https://your-backend-xyz.a.run.app)}"
+: "${UPSTREAM_API_BASE_URL:?Must set UPSTREAM_API_BASE_URL}"
+
+# Security Check
+if [[ "$UPSTREAM_API_BASE_URL" != https://* && "$UPSTREAM_API_BASE_URL" != http://localhost* ]]; then
+  echo "WARNING: UPSTREAM_API_BASE_URL does not start with https://. This is insecure for production!"
+fi
 
 # Strip trailing /api or /api/
 case "$UPSTREAM_API_BASE_URL" in
@@ -9,7 +14,6 @@ case "$UPSTREAM_API_BASE_URL" in
   */api/) UPSTREAM_API_BASE_URL="${UPSTREAM_API_BASE_URL%/api/}" ;;
 esac
 
-# Strip any trailing slash(es) so proxy_pass forwards the full original URI
 UPSTREAM_API_BASE_URL="${UPSTREAM_API_BASE_URL%/}"
 export UPSTREAM_API_BASE_URL
 
