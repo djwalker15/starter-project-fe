@@ -1,0 +1,112 @@
+name: CI & Deploy to Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (e.g., v1)"
+        required: true
+        default: "v1"
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  REPO: ${{ secrets.ARTIFACT_REPO }}
+  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REPO }}/${{ secrets.CLOUD_RUN_SERVICE }}:${{ github.sha }}
+  # Plain (non-secret) envs as a comma-separated KEY=VALUE list
+  FE_ENV_VARIABLES: ${{ secrets.FE_ENV_VARIABLES }}
+  # Secret Manager mappings as a comma-separated list:
+  # e.g., DB_PASSWORD=projects/$PROJECT_ID/secrets/db_password:latest,JWT_SECRET=jwt_secret:1
+  # FE_SECRET_VARS: ${{ secrets.FE_SECRET_VARS }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # - run: npm test
+      - run: npm run build
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # needed for WIF
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Auth via Workload Identity Federation ---
+      - id: auth-wif
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure gcloud
+        run: |
+          gcloud config set project "$PROJECT_ID"
+          gcloud config set run/region "$REGION"
+
+      - name: Ensure Artifact Registry repo exists
+        run: |
+          gcloud artifacts repositories describe "$REPO" --location="$REGION" \
+          || gcloud artifacts repositories create "$REPO" \
+               --repository-format=docker \
+               --location="$REGION" \
+               --description="Docker repo for $SERVICE"
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and Push
+        run: |
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run (with Secret Manager + plain envs)
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          SERVICE: ${{ env.SERVICE }}
+          IMAGE: ${{ env.IMAGE }}
+          FE_ENV_VARIABLES: ${{ env.FE_ENV_VARIABLES }}
+          # FE_SECRET_VARS: ${{ env.FE_SECRET_VARS }}
+        run: |
+          set -euo pipefail
+
+          # Build optional flags safely
+          EXTRA_FLAGS=()
+
+          # Add non-secret env vars (KEY=VALUE,KEY2=VALUE2)
+          if [[ -n "${FE_ENV_VARIABLES:-}" ]]; then
+            EXTRA_FLAGS+=( --set-env-vars="${FE_ENV_VARIABLES}" )
+          fi
+
+          # # Add Secret Manager envs (ENV=SECRET[:VERSION],ENV2=projects/ID/secrets/NAME:VERSION,...)
+          # if [[ -n "${FE_SECRET_VARS:-}" ]]; then
+          #   EXTRA_FLAGS+=( --set-secrets="${FE_SECRET_VARS}" )
+          # fi
+
+          gcloud run deploy "${SERVICE}" \
+            --image="${IMAGE}" \
+            --region="${REGION}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            "${EXTRA_FLAGS[@]}"
