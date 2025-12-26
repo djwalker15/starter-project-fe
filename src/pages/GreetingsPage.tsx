@@ -9,14 +9,27 @@ import {
 } from "../api/greetings";
 import { ApiError, VITE_API_BASE_URL } from "../api/http";
 
+// UI Components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString();
 }
-console.log(`API BASE URL: ${VITE_API_BASE_URL}`)
-type FormState = GreetingCreate;
 
+type FormState = GreetingCreate;
 const EMPTY_FORM: FormState = { sender: "", recipient: "", message: "" };
 
 export function GreetingsPage() {
@@ -39,16 +52,15 @@ export function GreetingsPage() {
     const ac = new AbortController();
     setLoading(true);
     setErr(null);
-
     try {
       const data = await listGreetings(ac.signal);
       setItems(data);
     } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
       setErr(renderError(e));
     } finally {
       setLoading(false);
     }
-
     return () => ac.abort();
   }
 
@@ -58,9 +70,7 @@ export function GreetingsPage() {
 
   function renderError(e: unknown) {
     if (e instanceof ApiError) {
-      return `${e.message}${
-        e.payload ? ` | detail: ${JSON.stringify(e.payload)}` : ""
-      }`;
+      return `${e.message}${e.payload ? ` | detail: ${JSON.stringify(e.payload)}` : ""}`;
     }
     if (e instanceof Error) return e.message;
     return String(e);
@@ -122,274 +132,170 @@ export function GreetingsPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+    <div className="container mx-auto max-w-5xl py-10 px-4">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 style={{ marginBottom: 6 }}>Greetings</h1>
-          <div style={{ opacity: 0.75, fontSize: 13 }}>
-            API: <code>{apiLabel}</code>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Greetings</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            API Endpoint: <code className="bg-muted px-1 py-0.5 rounded">{apiLabel}</code>
+          </p>
         </div>
-
-        <button
-          onClick={() => void refresh()}
-          disabled={loading}
-          style={{
-            height: 38,
-            padding: "0 14px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "transparent",
-            color: "inherit",
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh List"}
+        </Button>
       </div>
 
       {err && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid rgba(255, 100, 100, 0.35)",
-            background: "rgba(255,100,100,0.08)",
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <div className="mb-6 p-4 rounded-md bg-destructive/15 text-destructive border border-destructive/20">
           {err}
         </div>
       )}
 
-      <section
-        style={{
-          marginTop: 18,
-          padding: 16,
-          borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Create</h2>
+      {/* Create Form Card */}
+      <Card className="mb-10">
+        <CardHeader>
+          <CardTitle>Create New Greeting</CardTitle>
+          <CardDescription>Send a message to someone special.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Sender
+              </label>
+              <Input
+                placeholder="e.g. Alice"
+                value={form.sender}
+                onChange={(e) => setForm((p) => ({ ...p, sender: e.target.value }))}
+                maxLength={50}
+              />
+            </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-          }}
-        >
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Sender</span>
-            <input
-              value={form.sender}
-              onChange={(e) => setForm((p) => ({ ...p, sender: e.target.value }))}
-              maxLength={50}
-            />
-          </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Recipient
+              </label>
+              <Input
+                placeholder="e.g. Bob"
+                value={form.recipient}
+                onChange={(e) => setForm((p) => ({ ...p, recipient: e.target.value }))}
+                maxLength={50}
+              />
+            </div>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Recipient</span>
-            <input
-              value={form.recipient}
-              onChange={(e) => setForm((p) => ({ ...p, recipient: e.target.value }))}
-              maxLength={50}
-            />
-          </label>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Message
+              </label>
+              <Textarea
+                placeholder="Type your message here..."
+                value={form.message}
+                onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
+                maxLength={280}
+                rows={3}
+              />
+            </div>
+          </div>
 
-          <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Message</span>
-            <textarea
-              value={form.message}
-              onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-              maxLength={280}
-              rows={3}
-            />
-          </label>
-        </div>
+          <div className="mt-6 flex gap-3">
+            <Button onClick={() => void onCreate()} disabled={creating || !form.sender || !form.recipient || !form.message}>
+              {creating ? "Creating..." : "Create Greeting"}
+            </Button>
+            <Button variant="ghost" onClick={() => setForm(EMPTY_FORM)} disabled={creating}>
+              Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-          <button
-            onClick={() => void onCreate()}
-            disabled={creating || !form.sender || !form.recipient || !form.message}
-            style={{
-              height: 38,
-              padding: "0 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "rgba(255,255,255,0.06)",
-              color: "inherit",
-              cursor:
-                creating || !form.sender || !form.recipient || !form.message
-                  ? "not-allowed"
-                  : "pointer",
-            }}
-          >
-            {creating ? "Creating…" : "Create Greeting"}
-          </button>
-
-          <button
-            onClick={() => setForm(EMPTY_FORM)}
-            disabled={creating}
-            style={{
-              height: 38,
-              padding: "0 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "transparent",
-              color: "inherit",
-              cursor: creating ? "not-allowed" : "pointer",
-            }}
-          >
-            Reset
-          </button>
-        </div>
-      </section>
-
-      <section style={{ marginTop: 18 }}>
-        <h2>List</h2>
-
-        <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 12,
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left" }}>
-                <th style={thStyle}>Sender</th>
-                <th style={thStyle}>Recipient</th>
-                <th style={thStyle}>Message</th>
-                <th style={thStyle}>Created</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 && !loading && (
-                <tr>
-                  <td style={tdStyle} colSpan={5}>
-                    No greetings found.
-                  </td>
-                </tr>
-              )}
-
-              {items.map((g) => {
-                const isEditing = editingId === g.id;
-
-                return (
-                  <tr key={g.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <td style={tdStyle}>
-                      {isEditing ? (
-                        <input
-                          value={editDraft.sender}
-                          maxLength={50}
-                          onChange={(e) =>
-                            setEditDraft((p) => ({ ...p, sender: e.target.value }))
-                          }
-                        />
-                      ) : (
-                        g.sender
-                      )}
-                    </td>
-
-                    <td style={tdStyle}>
-                      {isEditing ? (
-                        <input
-                          value={editDraft.recipient}
-                          maxLength={50}
-                          onChange={(e) =>
-                            setEditDraft((p) => ({ ...p, recipient: e.target.value }))
-                          }
-                        />
-                      ) : (
-                        g.recipient
-                      )}
-                    </td>
-
-                    <td style={tdStyle}>
-                      {isEditing ? (
-                        <textarea
-                          value={editDraft.message}
-                          maxLength={280}
-                          rows={2}
-                          onChange={(e) =>
-                            setEditDraft((p) => ({ ...p, message: e.target.value }))
-                          }
-                        />
-                      ) : (
-                        <span style={{ opacity: 0.95 }}>{g.message}</span>
-                      )}
-                    </td>
-
-                    <td style={tdStyle}>
-                      <span style={{ opacity: 0.75, fontSize: 13 }}>
-                        {formatDate(g.created_at)}
-                      </span>
-                    </td>
-
-                    <td style={tdStyle}>
-                      {isEditing ? (
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button
-                            onClick={() => void onSaveEdit(g.id)}
-                            disabled={saving}
-                            style={miniBtnPrimary}
-                          >
-                            {saving ? "Saving…" : "Save"}
-                          </button>
-                          <button onClick={cancelEdit} disabled={saving} style={miniBtn}>
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button onClick={() => startEdit(g)} style={miniBtnPrimary}>
-                            Edit
-                          </button>
-                          <button onClick={() => void onDelete(g.id)} style={miniBtn}>
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {/* Data Table */}
+      <div className="rounded-md border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[150px]">Sender</TableHead>
+              <TableHead className="w-[150px]">Recipient</TableHead>
+              <TableHead>Message</TableHead>
+              <TableHead className="w-[180px]">Created</TableHead>
+              <TableHead className="text-right w-[180px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 && !loading && (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  No greetings found. Create one above!
+                </TableCell>
+              </TableRow>
+            )}
+            {items.map((g) => {
+              const isEditing = editingId === g.id;
+              return (
+                <TableRow key={g.id}>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input
+                        value={editDraft.sender}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, sender: e.target.value }))}
+                        className="h-8"
+                      />
+                    ) : (
+                      <span className="font-medium">{g.sender}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input
+                        value={editDraft.recipient}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, recipient: e.target.value }))}
+                        className="h-8"
+                      />
+                    ) : (
+                      g.recipient
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Textarea
+                        value={editDraft.message}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, message: e.target.value }))}
+                        className="min-h-[60px]"
+                      />
+                    ) : (
+                      g.message
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatDate(g.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {isEditing ? (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" onClick={() => void onSaveEdit(g.id)} disabled={saving}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={saving}>
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(g)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => void onDelete(g.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  fontSize: 13,
-  opacity: 0.8,
-  borderBottom: "1px solid rgba(255,255,255,0.12)",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  verticalAlign: "top",
-};
-
-const miniBtn: React.CSSProperties = {
-  height: 32,
-  padding: "0 10px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "transparent",
-  color: "inherit",
-  cursor: "pointer",
-};
-
-const miniBtnPrimary: React.CSSProperties = {
-  ...miniBtn,
-  background: "rgba(255,255,255,0.06)",
-};
